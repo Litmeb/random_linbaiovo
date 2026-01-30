@@ -109,21 +109,30 @@
     <div class="crt-glow"></div>
 
     <!-- 主容器 -->
-    <div class="relative z-30 w-full max-w-4xl h-[90vh] md:h-[80vh] flex flex-col p-4 md:p-8 gap-4">
+    <div class="relative z-30 w-full max-w-4xl h-[95vh] md:h-[88vh] flex flex-col p-4 md:p-8 gap-4">
         
         <!-- 头部 -->
         <div class="flex justify-between items-end border-b-2 border-green-900 pb-2 mb-2 select-none">
-            <div>
+            <div class="flex items-start gap-3">
+                <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <button id="pause-btn" class="cyber-btn px-3 py-1 text-base md:text-lg rounded" title="暂停">⏸</button>
+                        <button id="restart-btn" class="cyber-btn px-3 py-1 text-base md:text-lg rounded" title="重开">⟲</button>
+                    </div>
+                    <div class="text-xs md:text-sm opacity-60">
+                        STATUS: LISTENING...
+                    </div>
+                </div>
                 <h1 class="text-3xl md:text-5xl font-bold tracking-tight text-green-500" style="text-shadow: 0 0 10px rgba(0,255,65,0.5);">
                     什么随机生成
                 </h1>
-                <div class="text-xs md:text-sm opacity-60 mt-1">
-                    STATUS: LISTENING...
-                </div>
             </div>
             <div class="text-right font-mono text-xs md:text-sm opacity-80">
-                <div class="animate-pulse">MEM: <span id="mem-val">42.0%</span></div>
-                <div class="text-xl md:text-2xl font-bold mt-1">什么_SYSTEM</div>
+                <div>当前最高: <span id="max-score-val">0</span></div>
+                <div class="flex items-center gap-2">
+                    历史最高: <span id="history-max-score-val">0</span>
+                    <button type="button" id="clear-history-btn" class="cyber-btn px-2 py-0.5 text-xs rounded" title="清除历史最高">清除</button>
+                </div>
             </div>
         </div>
 
@@ -145,17 +154,30 @@
 
         <!-- 底部控制 -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 mt-2">
-            <div class="text-xs opacity-40 order-2 md:order-1">
-                > CONNECTED TO SERVER <br>
-                > USER: ??? <br>
-                > 正确: <span id="stat-correct">0</span> | 错误: <span id="stat-wrong">0</span> | 正确率: <span id="stat-rate">0%</span>
+            <div class="text-xs order-2 md:order-1 font-mono relative">
+                <div class="opacity-80">
+                    > CONNECTED TO SERVER <br>
+                    > USER: <span id="user-name-display">???</span> <br>
+                    > 正确: <span id="stat-correct">0</span> | 错误: <span id="stat-wrong">0</span> | 正确率: <span id="stat-rate">0%</span>
+                </div>
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="text-xl md:text-2xl font-bold" style="text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);">SCORE: <span id="score-val">0</span></span>
+                    <button type="button" id="score-help-btn" class="w-6 h-6 rounded-full border border-current text-sm flex items-center justify-center leading-none opacity-80 hover:opacity-100" title="计分规则">?</button>
+                    <button type="button" id="leaderboard-btn" class="cyber-btn px-2 py-0.5 text-xs rounded opacity-100" title="排行榜">排行榜</button>
+                </div>
+                <div id="score-rules-tooltip" class="hidden absolute left-0 top-full mt-1 p-3 bg-black border-2 border-green-900 text-left text-xs max-w-xs z-50 rounded">
+                    答题中每秒 -1 分；答完题的结算页面会暂停计时<br>答对 +7，答错 -10。
+                </div>
             </div>
             <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto order-1 md:order-2">
-                <button id="choice-linbai" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto">
-                    林白
+                <button id="start-game-btn" class="cyber-btn px-12 py-4 text-xl md:text-2xl rounded w-full md:w-auto">
+                    开始游戏
                 </button>
-                <button id="choice-nanoi" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto">
-                    nanoi
+                <button id="choice-linbai" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
+                    选项A
+                </button>
+                <button id="choice-nanoi" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
+                    选项B
                 </button>
                 <button id="next-question" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
                     重新出题
@@ -163,140 +185,111 @@
             </div>
         </div>
 
+        <!-- 排行榜弹窗 -->
+        <div id="leaderboard-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" style="backdrop-filter: blur(4px);">
+            <div class="bg-black border-2 border-green-900 rounded-lg max-w-md w-full max-h-[80vh] flex flex-col shadow-lg" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center p-4 border-b border-green-900">
+                    <h2 class="text-xl font-bold text-green-500">排行榜</h2>
+                    <button type="button" id="leaderboard-close" class="cyber-btn px-3 py-1 text-sm rounded">关闭</button>
+                </div>
+                <div id="leaderboard-list" class="flex-1 overflow-y-auto p-4 custom-scroll text-sm space-y-1">
+                    <div class="opacity-60 text-center py-4">加载中...</div>
+                </div>
+                <div class="p-4 border-t border-green-900 space-y-3">
+                    <label class="block text-sm opacity-80">你的名字（将显示在排行榜上）</label>
+                    <input type="text" id="leaderboard-name-input" maxlength="20" placeholder="输入名字" class="w-full bg-black border-2 border-green-900 rounded px-3 py-2 text-green-500 placeholder-green-900 focus:outline-none focus:border-green-500" />
+                    <button type="button" id="leaderboard-submit" class="cyber-btn w-full py-2 rounded">上传我的最高分</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
+    <!-- Firebase SDK -->
     <script>
-        const nanoiTexts = [
-            "我不会骑自行车",
-            "午休的世界",
-            "气泡的功能是什么",
-            "怎样才能一动不动",
-            "谁能教我做梦，你们做梦好好玩，关于做梦的钥匙点。火山岩苏打，我互通的现代化碳酸签证",
-            "甜甜圈打孔服务在线",
-            "傲娇电子账户",
-            "一个没有能力产生爱的人真的能够创作出充满爱意的作品吗，光是在脑中绘制这样的结构就足够让我笑的前仰后合，不过我好像也没有接受过关于如何去爱一个人的教育，很不幸，近来对感受的敏锐力也在不断降低。以前在深夜时偶尔会想到，友爱也好恋爱也好亲情之爱也好，一个人如果连爱的能力都没有，那还是死了更好一点。如果是被高速列车撞到的话，貌似当场就会灰飞烟灭的哦，物理意义上的，面对电车难题时会不会有人选择让它驶向自己呢，话说有这样的选项吗，不管怎样，有勇气承受痛苦与恐惧的人真是很厉害呢。噩梦是什么样的，我好像很久没有做过噩梦了。在梦里做梦算是噩梦吗",
-            "大家盯着鞋尖走路，额头与电线杆接触的感觉令人安心",
-            "叮咚当咚",
-            "走开",
-            "浅显 最近迷上了发布一些电波文字 不擅长微笑这一点我们很像 我嫉妒你 记性好差 我经常会想，天才究竟是什么，才能是什么，简单是什么，复杂是什么，难以理解的联系得到拉直的经历偶尔偶尔也能体验到就是了，收费的话或许价格不菲 你们的大脑构造是什么样的 这些文字是可以自己从头顶冒出来吗，这让我想起墨田前辈，不过我没有这样的能力，构造这些毛线团一样的感受再传播出去需要占用好多脑力，不过途中的工作不由我来负责就是 我什么都不懂 暴露在视线之下，被用作复杂运算最后得出结果的过程让我感到无所适从 复刻感受是任谁都能拥有的能力吗，如果能完全地达成这点那真是相当厉害 我又忘记了 这一段时间变化好大 过去的日子是怎么流过的呢 还有一年半 或许以后会往北几十到一两百公里 自我怀疑 又开始了 青春的范围是什么 又开始了 独自出门的感受 往往只能看到事物的表面 事物的里面 嗯",
-            "其实我们两个在孤立的某几点上重合度挺高的 才能是什么 童年 学识 认知 激情 社交 象形 内分泌 睡眠 睡眠瘫痪症 方法 初音未来 惰性 抓狂 暗示 焦虑症 复杂 暴力倾向 自卑 肯定 幸福趋向 呼吸频率 精神",
-            "人们在海岸上搭建桥梁，铺设公路与铁路",
-            "夢中呼吸困難而死去",
-            "空空空空空空空",
-            "传统的虚拟偶像致力于打造一个完美无瑕的“拟像”（Simulacra），但过度的完美会带来疏离感。NanoiUwU团队的策略，实际上是主动为这个“拟像”注入一些可控的、看似不完美的“瑕疵”。",
-            "坐在电线杆上为什么能看到学校 我感觉焦糖低压 月球脊髓灰质加入世界级深水良港 有没有好用的凹陷公式 他们常说头和肘关节和腓肠肌需要构成流线型 吃过甜筒后在死海的溺水挑战 免费投掷哭喊上海虹桥站阅读清单 跳水机票不敢河北铁路 麦田怪圈绘柄做的公众闽都甜甜圈 少年宫兴趣班长途游泳教练对岸接受宇宙电波 跨海大桥新建两用机堡 断裂平原的破碎海湾麦旋风 城市建成区的T1航站楼大量工业区 哈根达斯平滑3D小镇国家3A景区 巧克力板风状流自动化的涡轮摇曳百江渚构成 羊角包掏樱摩卡危机管理 得知自己是嗯啊嗯哦咦，哭了整整一个晚上 「请所有同学迅速回到班上」海啸袭击学校后，我梦见了穿越时空的大室樱子，我因为同学未关闭的窗户弄湿了身体 厦门高崎国际机场抄袭高崎深咲 小葵花妈妈课堂抄袭古谷向日葵 大阪池袋站空调外机随机击倒墨田区教室 值儿子你为什么会变成现在这个样子 我错",
-            "谁来和我组向阳庄啊…",
-            "我们都爱躺着",
-            "午休圈",
-            "格尔尼卡",
-            "一直虾",
-            "地震波及到了我的床铺",
-            "今天用完了一生的打喷嚏体验券",
-            "好想一个人去旅行",
-            "温泉",
-            "窗口被堵死了我看不到是黑的，我一直摸着黑在比可乐更浓郁的奶制品里一步又一步",
-            "我不知道，没人告诉我，我好像在海底隧道里观看虚假影像，一直",
-            "制作方法",
-            "Moka我求你了",
-            "为什么会没有嘴巴",
-            "奔跑着试图追上走失的透明海星，看着草稿本上的涂鸦哭了起来",
-            "泛滥到溢出的传递爱意的作品与随处可见的恶意可以同时存在于这个世界上",
-            "好想哭，我不懂UwU的心",
-            "想要兑换才能",
-            "后午休自动贩卖机是假的",
-            "好生气为什么全世界都下雪了，长这么大只见过一次雪",
-            "我真的好喜欢你，每次翻看你的短评和日志我都感到难以抑制封存在内心深处快要满溢而出的爱意，如果你也能喜欢我就好了，如果你能够看我一眼，和我说说话就好了，如果我能够一直牵住你的手，再也不松开，看着你的笑容，一直到永远，该有多好。我们会戴着白三叶草编织的花环，在浅蓝夜色下的花甸欢笑着奔跑着，精疲力尽地躺倒在野花中，握住彼此的手心，数着闪亮亮的星星浸入荧光点缀的梦乡，一定会是这样的吧",
-            "我去你们说的那个大室樱子是我同学",
-            "为什么要这样，你应该能看到吧，我真的很失落，我真的很寂寞，我真的很难过，我真的很伤心，我真的很绝望，对不起",
-            "woshibushirangnibugaoxingle...duibuqi",
-            "趴着睡觉特辑",
-            "从即刻起，本账号将由NanoiUwU与NanoiO_O两个不同的心共同使用，请大家注意辨认",
-            "有人发现了一种新的创作体裁并且正在这个网站进行自己的实验",
-            "好想去旅行",
-            "这是什么意思，我很难过",
-            "明信片好难擦该怎么办",
-            "后午休出现之后就再也没有喝过酒",
-            "こころぴょんぴょん待ち???????????",
-            "记性不好，忘记要吃薯片",
-            "你终于死了",
-            "学校里的猫都比我像个活人",
-            "气温骤降的季节 大概需要连结雾状棉花糖的模糊热水澡",
-            "大家是不是都死了",
-            "514451376有人发给我这个qq号说让我先进去，说这里有日乙资源",
-            "发出声嘶力竭的震鸣也触摸不到的透明的绝望幸福有一天纯洁的天使们会死在令人眩目的火花下到那时温柔的心灵便像虚无的格式在瞬间溶解因为不论是手拉着手笑着或打碎悲伤的眼泪都无例外回到了世界的初始因为神无可奈何地将它们填充进渗透一切的无色平面",
-            "固化波峰的蓝色睡眠，尝试独自骑着摩托车穿过那片滞留光铃的花甸",
-            "好想说点什么，没有人给我饼干的锯齿体验莓红色凝胶，眼泪容量制造变化大量饮水机，爱的体验券为什么从未在麦田值机床单坠落，心的麦田怪圈是我踹出来的，体验过高压电塔，你也能像毛绒羊驼一样在卷积流观察窗中飞行。其中包含着我的真心话，但是无奈地焦虑把抹茶色椰果安置在遏制焦卷里，我好像已经很难做到了。但是我又发现持续的自然联系可以很好的恢复，比如刚刚出现了流动的悬浮窗口，我希望能够维持，不希望丢失自然的方法。好像布料进入了半饱和的(σ≧∀≦)σ色，要晚安哦",
-            "好友评价：10.0 超神作 7 人评分",
-            "怎么变回去",
-            "我和大室樱子唯一的共同点是智商",
-            "看了一下还真不是乱做的，向日葵樱子的关系塑造非常复杂细腻。在肉体上樱子是攻扮演男人，向日葵是受扮演女人，但是在感情上向日葵是事业心大过情爱，而樱子只在乎感情，只想要两人厮守，在感情上向日葵才是男人而樱子变成了女人。这种肉体感情上的错位才是她俩决裂的根本，樱子把自己全部的爱都给了向日葵，向日葵却没有没有回报自己全部的爱，这才让樱子产生恨意，可是当向日葵真的昏死后，樱子也失去了能让她全身心去爱的人。当向日葵昏死时将最后一袋巧克力小饼干洒在樱子身上时，樱子想的是什么呢？是那一夜的厮守，还是看到向日葵忘去那一夜情，与千夏好上了的时候的愤怒与惆怅？樱子给了她所有的爱，甚至希望将所有的情感投入到这段荒唐的恋情，可向日葵追求的却不是感情，相反，她的一句“总之，下周六我还是和吉川同学约好了。”彻底浇灭了她心中残存的火花。樱子恨她，但那一夜春宵却历历在目。她知道，她要",
-            "？？我昨晚发了什么",
-            "哎哟我错了，发了一万条朋友圈虐鹅视频不知道第二天起来会怎么想唉求求你们饶了我，我知错了，我一点都不可爱，到底是谁说的？我怎么不知道，明天又得回去了，再明天回学校，满意服务了，你们看得懂吗？对不起啊各位我爱你们所有人，我又因为自己不爱任何人感到痛苦，为什么呢呢额你们有谁明白有谁知道，我从来不参加一百米决赛，我引体向上随便拉十个以上，我好厉害呀。我爱你们呢，永远爱你们呢，真的真的很爱你们，我想爱所有人，所有温柔善良的人，所有人都应该被爱，唉这是咋了，我怎么会这样，我想可爱一点但是我做不到，宝宝们怎么样变得可爱呀？你们都不说话吗？你们不说话我是不会知道的哦，我的天哪我在说什么，哎呀不说了我要去睡觉了晚安所有宇宙的行星们",
-            "火车站",
-            "チマメ隊 我想试一试",
-            "大家都交不到朋友的吗？真是垃圾啊！！垃圾啊！ww",
-            "你们怎么发现我的？！",
-            "我是雨 雨 雨 雨 雨help me to breathe",
-            "我的天哪，要怎么做才能发自内心地放声大哭",
-            "谁懂喷嚏被打断的感觉",
-            "远古豚片",
-            "啊这个好可爱呀",
-            "什么样的人会在心理问卷上把幸福指数打到满分",
-            "输的人要毁灭世界",
-            "下周让樱子穿校服",
-            "好想撒泼打滚",
-            "小孩 我是小孩",
-            "没人懂我的笑点",
-            "鮟鱇鱼又叫灯笼鱼",
-            "过去现在未来我都完全不明白，我全都不知道，我什么也不懂，怎么办，我不了解，为什么没人告诉我该怎么做，怎么做才好，教教我",
-            "你很神秘，你是个神秘人",
-            "2018年Yurukyan至今，仍没有一部作品能够成为新的神之动画(滚已开除豚籍)",
-            "外星",
-            "大脑酒后产生的排泄物有种驾驶飞行校车氮气加速压扁开心农场的爽感美感快感舒适感",
-        ];
-        const linbaiTexts = [
-            "就當最初是碎步湖上可不可",
-            "别的地方不下雪都是因为气温不够低，只有北京是因为没有水分..零下十几度却还阳光明媚，又冷又没有雪景看",
-            "为什么我连动态线的贴贴都有cd了还想给列表的宝宝们每条动态都补上贴贴的，结果贴了一页就贴不了了",
-            "沿著殘破舊鐵路蕩回去 回不去那段艷陽天的伴侶",
-            "期末考完如果没挂科寒假我要看番",
-            "月光不敵雨水 數著綿羊都可以流眼淚",
-            "薔薇將春光 如一的給了最細致的味",
-            "换了个头像，友友们不要把我当陌生人ww",
-            "忘掉了雙星報喜 把天井當悽美地 煽未",
-            "哪一天陽光 再度轉暗 先為我所信 為我所愛 再賽",
-            "自細做過多少美夢 慈悲的偉論 連乞丐喊窮心也痛",
-            "情感本應古怪 喜不喜歡 為何尚有顧忌",
-            "如果燈飾數悶又冇酒 就買兩粒燒賣當火雞",
-            "如在櫻花都散落時 又會否剛好的鍾意",
-            "天主宰天氣 偏要泡熱燙風呂 要半夏和風吹",
-            "難道怪罪神沒有更偽善的祝福",
-            "头发未染霜 著凉亦错在我幼稚 应快活像个天使",
-            "當天園林 今天已換上 滿地青苔",
-            "吃到车厘子了 好甜好好吃 我好幸福",
-            "原來澀谷東急總店消失我都會在",
-            "北京降温了好冷好冷好冷 今天在床上待到下午才起来 到了吃车厘子和草莓的季节了但是买不起车厘子只好花攒下来的块钱买了草莓一共个给三个舍友各分了个 刚去洗了一个尝了尝酸酸甜甜冰冰凉凉的好好吃 感觉生活又有了希望",
-            "軌跡改變角度交錯 寂寞城市又再探戈",
-            "唉又熬了个通宵 还有几个小时考试 好困",
-            "問心只妄想跟你快樂牧羊 憑這成就到老去亦安詳",
-            "失去你 唯有等歌迷去喜歡我",
-            "考完模电了明明认真学了可还是考的一塌糊涂马上还要考电磁还要考量子一点都没有学怎么办怎么办怎么办我还玩了一整天什么都没干要不及格了要挂科了要保不上研了要毕不了业了我好焦虑好焦虑好焦虑但我不想搞学习了一天喝了很多咖啡了又得去刷夜了但我想睡觉我想吃东西我想看动漫我不想当做题区了老天你救救我吧我发誓下半学期好好搞学习再也不玩了呜呜呜呜我想被爱",
-            "如能忘掉總比牽挂簡潔又容易鍛鍊",
-            "我错了原来模电才是最恶心的 还有两天考试 能考到及格吗",
-            "唉唉唉光学真是人类历史上最失败的、令人作呕的、意义不明的、根本学不懂的发明",
-            "沒有傷春的我看一看枯葉伴晚秋",
-            "誰能夠了解天意看透玄機 誰曾説世間將會走進 溫室世紀",
-            "相戀的關係猶像熱帶雨林 逐分鐘消失哩",
-            "我不看番了我要搞学习",
-            "風箏消失於嘆息橋 開開心心 一起向它憑弔",
-            "句句我愛你佈滿青苔 別擁抱 懶得要死",
-            "留我做個垃圾 長留戀於你家",
-            "明明放低的你 經已唱新歌",
-            "讓我可 飄~飄~飄~飄~進愛的海",
-            "浪漫願她不要改 所信是模糊仍肯冀待",
-            "存在要孤獨地勇敢 人類卻需要護蔭",
-            "我 想好好抉擇 好想嗌暫停想一想哪樣過",
-            "时空太过大 超脱我的喜与悲"
+        window.firestoreApi = { getLeaderboard: null, submitScore: null };
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDrbk_wOJfNohIVEFSgAAA9D2XUdMFK5i0",
+            authDomain: "who-post-this.firebaseapp.com",
+            projectId: "who-post-this",
+            storageBucket: "who-post-this.appspot.com",
+            messagingSenderId: "549959020575",
+            appId: "1:549959020575:web:9f78c757c79636d5b2252a"
+        };
+
+        let db = null;
+        if (firebaseConfig.projectId && firebaseConfig.projectId !== "YOUR_PROJECT_ID") {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                window.firestoreApi.getLeaderboard = async function() {
+                    const snap = await db.collection('leaderboard')
+                        .orderBy('score', 'desc')
+                        .limit(200)
+                        .get();
+                    const list = snap.docs.map(d => {
+                        const data = d.data();
+                        const { deleteToken, ...rest } = data;
+                        return { id: d.id, ...rest };
+                    });
+                    list.sort((a, b) => {
+                        if (a.score !== b.score) return b.score - a.score;
+                        const ra = Number(a.correctRate) || 0, rb = Number(b.correctRate) || 0;
+                        if (ra !== rb) return rb - ra;
+                        return (Number(b.correctCount) || 0) - (Number(a.correctCount) || 0);
+                    });
+                    return list.slice(0, 50);
+                };
+                window.firestoreApi.submitScore = async function(nickname, score, correctRate, correctCount) {
+                    const sn = String(nickname).trim().slice(0, 20) || '匿名';
+                    const sc = Number(score);
+                    const cr = Number(correctRate);
+                    const cc = Number(correctCount);
+                    const dup = await db.collection('leaderboard')
+                        .where('score', '==', sc)
+                        .where('correctRate', '==', cr)
+                        .where('correctCount', '==', cc)
+                        .limit(1)
+                        .get();
+                    if (!dup.empty) return { alreadyStored: true };
+                    const deleteToken = Array.from({ length: 32 }, () => Math.random().toString(36)[2]).join('');
+                    const ref = await db.collection('leaderboard').add({
+                        nickname: sn,
+                        score: sc,
+                        correctRate: cr,
+                        correctCount: cc,
+                        deleteToken: deleteToken,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    return { alreadyStored: false, docId: ref.id, deleteToken: deleteToken };
+                };
+                window.firestoreApi.deleteEntry = async function(docId, deleteToken) {
+                    const ref = db.collection('leaderboard').doc(docId);
+                    const snap = await ref.get();
+                    if (!snap.exists) throw new Error('记录不存在');
+                    if (snap.data().deleteToken !== deleteToken) throw new Error('无权删除该记录');
+                    await ref.delete();
+                };
+            } catch (e) {
+                console.warn('Firebase init failed', e);
+            }
+        }
+    </script>
+    <script>
+        const frequentAuthors = [
+            "To 亲爱的NanoiUwU:",
+            "ScalLiontimbe",
+            "jibo babybaka",
+            "针阔叶林☆",
+            "我错了",
+            "林白_OvO",
+            "McGanter",
+            "Akanyase",
+            "白葱"
         ];
 
 
@@ -304,19 +297,44 @@
         const resultText = document.getElementById('result-text');
         const textWrapper = document.getElementById('text-wrapper');
         const displayContainer = document.getElementById('display-container');
-        const memVal = document.getElementById('mem-val');
+        const scoreVal = document.getElementById('score-val');
+        const maxScoreVal = document.getElementById('max-score-val');
+        const historyMaxScoreVal = document.getElementById('history-max-score-val');
         const bgNoise = document.getElementById('bg-noise');
         const choiceLinbai = document.getElementById('choice-linbai');
         const choiceNanoi = document.getElementById('choice-nanoi');
         const nextQuestion = document.getElementById('next-question');
+        const pauseBtn = document.getElementById('pause-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const scoreHelpBtn = document.getElementById('score-help-btn');
+        const scoreRulesTooltip = document.getElementById('score-rules-tooltip');
         const statCorrect = document.getElementById('stat-correct');
         const statWrong = document.getElementById('stat-wrong');
         const statRate = document.getElementById('stat-rate');
+        const leaderboardBtn = document.getElementById('leaderboard-btn');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const leaderboardClose = document.getElementById('leaderboard-close');
+        const leaderboardSubmit = document.getElementById('leaderboard-submit');
+        const leaderboardNameInput = document.getElementById('leaderboard-name-input');
+        const userNameDisplay = document.getElementById('user-name-display');
 
         let isTyping = false;
         let timeoutIds = [];
         let currentSource = null;
         let isAnswered = false;
+        let posts = [];
+        let postsReady = false;
+        let score = 0;
+        let maxScore = 0;
+        let historyMaxScore = 0;
+        let historyMaxCorrectCount = 0;
+        let historyMaxWrongCount = 0;
+        let scoreTimerId = null;
+        let isPaused = false;
+        let pausedResultHtml = "";
         let correctCount = 0;
         let wrongCount = 0;
 
@@ -328,6 +346,24 @@
             statRate.textContent = `${rate}%`;
         }
 
+        function updateScore() {
+            scoreVal.textContent = String(score);
+            maxScoreVal.textContent = String(maxScore);
+            if (score > maxScore) {
+                maxScore = score;
+                maxScoreVal.textContent = String(maxScore);
+            }
+            if (maxScore > historyMaxScore) {
+                historyMaxScore = maxScore;
+                historyMaxCorrectCount = correctCount;
+                historyMaxWrongCount = wrongCount;
+                historyMaxScoreVal.textContent = String(historyMaxScore);
+                localStorage.setItem('historyMaxScore', String(historyMaxScore));
+                localStorage.setItem('historyMaxCorrectCount', String(historyMaxCorrectCount));
+                localStorage.setItem('historyMaxWrongCount', String(historyMaxWrongCount));
+            }
+        }
+
         // 噪音生成
         function updateNoise() {
             let noise = "";
@@ -337,13 +373,28 @@
                 if(i%10===0) noise += "\n";
             }
             bgNoise.innerText = noise;
-            memVal.innerText = (Math.random() * 99).toFixed(1) + "%";
         }
         setInterval(updateNoise, 1500);
 
         function clearTimeouts() {
             timeoutIds.forEach(id => clearTimeout(id));
             timeoutIds = [];
+        }
+
+        function stopScoreTimer() {
+            if (scoreTimerId) {
+                clearInterval(scoreTimerId);
+                scoreTimerId = null;
+            }
+        }
+
+        function startScoreTimer() {
+            stopScoreTimer();
+            scoreTimerId = setInterval(() => {
+                if (isPaused || isAnswered || !postsReady) return;
+                score -= 1;
+                updateScore();
+            }, 1000);
         }
 
         function setChoicesEnabled(enabled) {
@@ -358,12 +409,27 @@
             nextQuestion.classList.toggle('hidden', !show);
         }
 
+        function getRandomItem(list) {
+            return list[Math.floor(Math.random() * list.length)];
+        }
+
         function pickQuestion() {
-            const useLinbai = Math.random() < 0.5;
-            const source = useLinbai ? 'linbai' : 'nanoi';
-            const list = useLinbai ? linbaiTexts : nanoiTexts;
-            const text = list[Math.floor(Math.random() * list.length)];
-            return { source, text };
+            const post = getRandomItem(posts);
+            const title = (post.title || "").trim();
+            const body = (post.body || "").trim();
+            const text = body ? `标题：${title}\n\n正文：${body}` : `标题：${title}`;
+            return { author: (post.author || "").trim(), text, url: (post.url || "").trim() };
+        }
+
+        function pickDistractor(correctAuthor) {
+            const pool = frequentAuthors.filter((name) => name && name !== correctAuthor);
+            if (pool.length > 0) {
+                return getRandomItem(pool);
+            }
+            const fallback = posts
+                .map((item) => (item.author || "").trim())
+                .filter((name) => name && name !== correctAuthor);
+            return fallback.length > 0 ? getRandomItem(fallback) : "未知作者";
         }
 
         function applyTextStyle(text) {
@@ -412,19 +478,35 @@
         }
 
         function startRound() {
+            if (!postsReady) {
+                mainText.innerText = "数据加载中...";
+                resultText.textContent = "";
+                showNextButton(false);
+                setChoicesEnabled(false);
+                return;
+            }
+
             isAnswered = false;
             resultText.textContent = "";
+            pausedResultHtml = "";
             showNextButton(false);
             setChoicesEnabled(true);
 
             displayContainer.classList.add('glitch-active');
             setTimeout(() => displayContainer.classList.remove('glitch-active'), 200);
 
-            const { source, text } = pickQuestion();
-            currentSource = source;
+            const { author, text, url } = pickQuestion();
+            currentSource = author;
+            mainText.dataset.currentUrl = url || "";
             mainText.dataset.fullText = text;
             applyTextStyle(text);
             startTyping(text);
+
+            const distractor = pickDistractor(author);
+            const options = Math.random() < 0.5 ? [author, distractor] : [distractor, author];
+            choiceLinbai.textContent = options[0];
+            choiceNanoi.textContent = options[1];
+            startScoreTimer();
         }
 
         function handleAnswer(choice) {
@@ -434,27 +516,257 @@
             setChoicesEnabled(false);
 
             const correct = choice === currentSource;
-            const answerLabel = currentSource === 'linbai' ? '林白' : 'nanoi';
+            const answerLabel = currentSource || "未知作者";
+            const currentUrl = mainText.dataset.currentUrl || "";
             if (correct) {
                 correctCount += 1;
+                score += 7;
             } else {
                 wrongCount += 1;
+                score -= 10;
             }
             updateStats();
-            resultText.textContent = correct ? "回答正确" : `回答错误 正确答案：${answerLabel}`;
+            updateScore();
+            const baseText = correct ? "回答正确" : `回答错误 正确答案：${answerLabel}`;
+            resultText.innerHTML = currentUrl
+                ? `${baseText}<br><a href="${currentUrl}" target="_blank" class="underline">查看帖子</a>`
+                : baseText;
             showNextButton(true);
+            stopScoreTimer();
         }
 
-        choiceLinbai.addEventListener('click', () => handleAnswer('linbai'));
-        choiceNanoi.addEventListener('click', () => handleAnswer('nanoi'));
+        choiceLinbai.addEventListener('click', () => handleAnswer(choiceLinbai.textContent));
+        choiceNanoi.addEventListener('click', () => handleAnswer(choiceNanoi.textContent));
         nextQuestion.addEventListener('click', startRound);
+        pauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? "▶" : "⏸";
+            if (isPaused) {
+                pausedResultHtml = resultText.innerHTML;
+                resultText.textContent = "暂停";
+                setChoicesEnabled(false);
+                stopScoreTimer();
+            } else {
+                resultText.innerHTML = pausedResultHtml || "";
+                if (!isAnswered && postsReady) {
+                    setChoicesEnabled(true);
+                    startScoreTimer();
+                }
+            }
+        });
+        restartBtn.addEventListener('click', () => {
+            score = 0;
+            maxScore = 0;
+            correctCount = 0;
+            wrongCount = 0;
+            updateScore();
+            updateStats();
+            isPaused = false;
+            pauseBtn.textContent = "⏸";
+            startRound();
+        });
+
+        async function loadPosts() {
+            try {
+                const res = await fetch('posts.json', { cache: 'no-store' });
+                if (!res.ok) throw new Error('load failed');
+                posts = await res.json();
+                posts = posts.filter((item) => item && (item.title || item.body) && item.author);
+                postsReady = posts.length > 0;
+            } catch (err) {
+                postsReady = false;
+                mainText.innerText = "加载失败 请用本地服务器打开";
+                resultText.textContent = "";
+                setChoicesEnabled(false);
+                showNextButton(false);
+            }
+        }
+
+        scoreHelpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            scoreRulesTooltip.classList.toggle('hidden');
+        });
+        document.addEventListener('click', () => scoreRulesTooltip.classList.add('hidden'));
+        scoreRulesTooltip.addEventListener('click', (e) => e.stopPropagation());
+
+        async function refreshLeaderboardList() {
+            const api = window.firestoreApi;
+            if (!api || !api.getLeaderboard) {
+                leaderboardList.innerHTML = '<div class="opacity-60 text-center py-4">未配置 Firebase，请在 index.html 中填写 firebaseConfig。</div>';
+                return;
+            }
+            try {
+                const entries = await api.getLeaderboard();
+                if (!entries.length) {
+                    leaderboardList.innerHTML = '<div class="opacity-60 text-center py-4">暂无记录，快来上传你的最高分吧！</div>';
+                    return;
+                }
+                const myEntries = getMyLeaderboardEntries();
+                leaderboardList.innerHTML = entries.map((e, i) => {
+                    const rate = e.correctRate != null ? Number(e.correctRate) : null;
+                    const cc = e.correctCount != null ? Number(e.correctCount) : null;
+                    const timeStr = e.createdAt && e.createdAt.toDate ? e.createdAt.toDate().toLocaleString('zh-CN') : '';
+                    const isMine = myEntries[e.id];
+                    const delBtn = isMine ? `<button type="button" class="leaderboard-del-btn cyber-btn px-2 py-0.5 text-xs rounded mt-1" data-doc-id="${escapeHtml(e.id)}">删除</button>` : '';
+                    return `<div class="border-b border-green-900/50 py-2">
+                        <div class="flex justify-between items-center">
+                            <span class="opacity-80">${i + 1}. ${escapeHtml(e.nickname || '匿名')}</span>
+                            <span class="font-bold">${Number(e.score)}</span>
+                        </div>
+                        <div class="text-xs opacity-60 mt-0.5">正确率 ${rate != null ? rate + '%' : '-'} · 正答 ${cc != null ? cc : '-'}${timeStr ? ' · ' + timeStr : ''}</div>
+                        ${delBtn}
+                    </div>`;
+                }).join('');
+                leaderboardList.querySelectorAll('.leaderboard-del-btn').forEach(btn => {
+                    btn.addEventListener('click', onLeaderboardDelete);
+                });
+            } catch (err) {
+                leaderboardList.innerHTML = '<div class="opacity-60 text-center py-4 text-red-400">加载失败：' + escapeHtml(String(err.message)) + '</div>';
+            }
+        }
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        const LEADERBOARD_MY_ENTRIES_KEY = 'leaderboardMyEntries';
+        const LEADERBOARD_LAST_NAME_KEY = 'leaderboardLastName';
+        function getLastLeaderboardName() {
+            try {
+                return localStorage.getItem(LEADERBOARD_LAST_NAME_KEY) || '';
+            } catch (_) { return ''; }
+        }
+        function saveLastLeaderboardName(name) {
+            try {
+                if (name && name.trim()) localStorage.setItem(LEADERBOARD_LAST_NAME_KEY, name.trim().slice(0, 20));
+            } catch (_) {}
+        }
+        function updateUserNameDisplay() {
+            const name = getLastLeaderboardName();
+            if (userNameDisplay) userNameDisplay.textContent = name || '???';
+        }
+        function getMyLeaderboardEntries() {
+            try {
+                const raw = localStorage.getItem(LEADERBOARD_MY_ENTRIES_KEY);
+                return raw ? JSON.parse(raw) : {};
+            } catch (_) { return {}; }
+        }
+        function saveMyLeaderboardEntry(docId, deleteToken) {
+            const entries = getMyLeaderboardEntries();
+            entries[docId] = deleteToken;
+            localStorage.setItem(LEADERBOARD_MY_ENTRIES_KEY, JSON.stringify(entries));
+        }
+        function removeMyLeaderboardEntry(docId) {
+            const entries = getMyLeaderboardEntries();
+            delete entries[docId];
+            localStorage.setItem(LEADERBOARD_MY_ENTRIES_KEY, JSON.stringify(entries));
+        }
+
+        async function onLeaderboardDelete(ev) {
+            const btn = ev.target;
+            const docId = btn.dataset.docId;
+            if (!docId) return;
+            const myEntries = getMyLeaderboardEntries();
+            const token = myEntries[docId];
+            if (!token) return;
+            const api = window.firestoreApi;
+            if (!api || !api.deleteEntry) return;
+            try {
+                await api.deleteEntry(docId, token);
+                removeMyLeaderboardEntry(docId);
+                await refreshLeaderboardList();
+            } catch (err) {
+                alert('删除失败：' + err.message);
+            }
+        }
+
+        leaderboardBtn.addEventListener('click', () => {
+            leaderboardModal.classList.remove('hidden');
+            if (leaderboardNameInput) leaderboardNameInput.value = getLastLeaderboardName();
+            refreshLeaderboardList();
+        });
+        clearHistoryBtn.addEventListener('click', () => {
+            if (!confirm('确定清除历史最高分记录？已上传到排行榜的记录和删除权限不会受影响。')) return;
+            historyMaxScore = 0;
+            historyMaxCorrectCount = 0;
+            historyMaxWrongCount = 0;
+            localStorage.removeItem('historyMaxScore');
+            localStorage.removeItem('historyMaxCorrectCount');
+            localStorage.removeItem('historyMaxWrongCount');
+            historyMaxScoreVal.textContent = '0';
+        });
+        leaderboardClose.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+        leaderboardModal.addEventListener('click', (e) => { if (e.target === leaderboardModal) leaderboardModal.classList.add('hidden'); });
+
+        leaderboardSubmit.addEventListener('click', async () => {
+            const api = window.firestoreApi;
+            if (!api || !api.submitScore) {
+                alert('未配置 Firebase，无法上传分数。');
+                return;
+            }
+            const nickname = (leaderboardNameInput && leaderboardNameInput.value.trim()) ? leaderboardNameInput.value.trim().slice(0, 20) : '匿名';
+            const total = historyMaxCorrectCount + historyMaxWrongCount;
+            const correctRate = total > 0 ? Math.round((historyMaxCorrectCount / total) * 100) : 0;
+            try {
+                const result = await api.submitScore(nickname, historyMaxScore, correctRate, historyMaxCorrectCount);
+                if (result && result.alreadyStored) {
+                    alert('上传被阻止：已存在完全相同的记录（总分、正确率、正答数均一致），请勿重复上传。');
+                    return;
+                }
+                if (nickname && nickname !== '匿名') {
+                    saveLastLeaderboardName(nickname);
+                    updateUserNameDisplay();
+                }
+                if (result && result.docId && result.deleteToken) {
+                    saveMyLeaderboardEntry(result.docId, result.deleteToken);
+                }
+                await refreshLeaderboardList();
+            } catch (err) {
+                alert('上传失败：' + err.message);
+            }
+        });
+
+        startGameBtn.addEventListener('click', () => {
+            startGameBtn.classList.add('hidden');
+            choiceLinbai.classList.remove('hidden');
+            choiceNanoi.classList.remove('hidden');
+            restartBtn.disabled = false;
+            restartBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            startRound();
+        });
+
+        function showStartScreen() {
+            mainText.innerText = "点击下方按钮开始游戏";
+            resultText.textContent = "";
+            startGameBtn.classList.remove('hidden');
+            choiceLinbai.classList.add('hidden');
+            choiceNanoi.classList.add('hidden');
+            nextQuestion.classList.add('hidden');
+            setChoicesEnabled(false);
+            restartBtn.disabled = true;
+            restartBtn.classList.add('opacity-40', 'cursor-not-allowed');
+        }
 
         // 初始化
         setTimeout(() => {
             mainText.innerText = "READY.";
         }, 400);
-        setTimeout(() => {
-            startRound();
+        setTimeout(async () => {
+            const savedMax = Number(localStorage.getItem('historyMaxScore') || 0);
+            historyMaxScore = Number.isFinite(savedMax) ? savedMax : 0;
+            historyMaxCorrectCount = Math.max(0, Number(localStorage.getItem('historyMaxCorrectCount') || 0));
+            historyMaxWrongCount = Math.max(0, Number(localStorage.getItem('historyMaxWrongCount') || 0));
+            historyMaxScoreVal.textContent = String(historyMaxScore);
+            updateUserNameDisplay();
+            if (leaderboardNameInput) leaderboardNameInput.value = getLastLeaderboardName();
+            await loadPosts();
+            if (postsReady) {
+                showStartScreen();
+            } else {
+                mainText.innerText = "加载失败 请用本地服务器打开";
+            }
+            updateScore();
         }, 900);
 
     </script>
