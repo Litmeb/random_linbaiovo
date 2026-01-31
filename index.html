@@ -164,6 +164,7 @@
                     <span class="text-xl md:text-2xl font-bold" style="text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);">SCORE: <span id="score-val">0</span></span>
                     <button type="button" id="score-help-btn" class="w-6 h-6 rounded-full border border-current text-sm flex items-center justify-center leading-none opacity-80 hover:opacity-100" title="计分规则">?</button>
                     <button type="button" id="leaderboard-btn" class="cyber-btn px-2 py-0.5 text-xs rounded opacity-100" title="排行榜">排行榜</button>
+                    <button type="button" id="overview-btn" class="cyber-btn px-2 py-0.5 text-xs rounded opacity-100" title="楼主统计总览">总览</button>
                 </div>
                 <div id="score-rules-tooltip" class="hidden absolute left-0 top-full mt-1 p-3 bg-black border-2 border-green-900 text-left text-xs max-w-xs z-50 rounded">
                     答题中每秒 -1 分；答完题的结算页面会暂停计时<br>答对 +10，答错 -10。
@@ -206,11 +207,33 @@
             </div>
         </div>
 
+        <!-- 楼主统计总览弹窗 -->
+        <div id="overview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" style="backdrop-filter: blur(4px);">
+            <div class="bg-black border-2 border-green-900 rounded-lg max-w-2xl w-full max-h-[85vh] flex flex-col shadow-lg" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center p-4 border-b border-green-900">
+                    <div class="flex items-center gap-2 relative">
+                        <h2 class="text-xl font-bold text-green-500">楼主统计总览</h2>
+                        <button type="button" id="overview-help-btn" class="w-5 h-5 rounded-full border border-current text-xs flex items-center justify-center leading-none opacity-80 hover:opacity-100" title="规则">?</button>
+                        <div id="overview-rules-tooltip" class="hidden absolute left-0 top-full mt-1 p-3 bg-black border-2 border-green-900 text-left text-xs max-w-xs z-50 rounded whitespace-normal">
+                            只显示答对 + 答错 ≥ 3 的楼主，按正确率排序，正确率相同就答得多的优先。
+                        </div>
+                    </div>
+                    <button type="button" id="overview-close" class="cyber-btn px-3 py-1 text-sm rounded">关闭</button>
+                </div>
+                <div id="overview-list" class="flex-1 overflow-y-auto p-4 custom-scroll text-sm">
+                    <div class="opacity-60 text-center py-4">加载中...</div>
+                </div>
+                <div class="p-4 border-t border-green-900">
+                    <button type="button" id="overview-upload-btn" class="cyber-btn w-full py-2 rounded">上传我的数据</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Firebase SDK -->
     <script>
-        window.firestoreApi = { getLeaderboard: null, submitScore: null };
+        window.firestoreApi = { getLeaderboard: null, submitScore: null, getAuthorStats: null, submitAuthorStats: null };
     </script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -277,6 +300,36 @@
                     if (snap.data().deleteToken !== deleteToken) throw new Error('无权删除该记录');
                     await ref.delete();
                 };
+                function sanitizeAuthorId(author) {
+                    return (author || '未知楼主').replace(/\//g, '_').slice(0, 1500);
+                }
+                window.firestoreApi.getAuthorStats = async function() {
+                    const snap = await db.collection('author_stats').get();
+                    return snap.docs.map(d => {
+                        const data = d.data();
+                        return {
+                            author: data.author || d.id,
+                            correctCount: Number(data.correctCount) || 0,
+                            wrongCount: Number(data.wrongCount) || 0
+                        };
+                    });
+                };
+                window.firestoreApi.submitAuthorStats = async function(localStats) {
+                    const batch = db.batch();
+                    for (const [author, stat] of Object.entries(localStats)) {
+                        const c = Number(stat.correct) || 0;
+                        const w = Number(stat.wrong) || 0;
+                        if (c <= 0 && w <= 0) continue;
+                        const docId = sanitizeAuthorId(author);
+                        const ref = db.collection('author_stats').doc(docId);
+                        batch.set(ref, {
+                            author: author || '未知楼主',
+                            correctCount: firebase.firestore.FieldValue.increment(c),
+                            wrongCount: firebase.firestore.FieldValue.increment(w)
+                        }, { merge: true });
+                    }
+                    await batch.commit();
+                };
             } catch (e) {
                 console.warn('Firebase init failed', e);
             }
@@ -311,6 +364,13 @@
         const leaderboardSubmitCurrent = document.getElementById('leaderboard-submit-current');
         const leaderboardNameInput = document.getElementById('leaderboard-name-input');
         const userNameDisplay = document.getElementById('user-name-display');
+        const overviewBtn = document.getElementById('overview-btn');
+        const overviewModal = document.getElementById('overview-modal');
+        const overviewList = document.getElementById('overview-list');
+        const overviewClose = document.getElementById('overview-close');
+        const overviewUploadBtn = document.getElementById('overview-upload-btn');
+        const overviewHelpBtn = document.getElementById('overview-help-btn');
+        const overviewRulesTooltip = document.getElementById('overview-rules-tooltip');
 
         let isTyping = false;
         let timeoutIds = [];
@@ -427,7 +487,7 @@
             const fallback = posts
                 .map((item) => (item.author || "").trim())
                 .filter((name) => name && name !== correctAuthor);
-            return fallback.length > 0 ? getRandomItem(fallback) : "未知作者";
+            return fallback.length > 0 ? getRandomItem(fallback) : "未知楼主";
         }
 
         function applyTextStyle(text) {
@@ -514,7 +574,7 @@
             setChoicesEnabled(false);
 
             const correct = choice === currentSource;
-            const answerLabel = currentSource || "未知作者";
+            const answerLabel = currentSource || "未知楼主";
             const currentUrl = mainText.dataset.currentUrl || "";
             if (correct) {
                 correctCount += 1;
@@ -523,6 +583,12 @@
                 wrongCount += 1;
                 score -= 10;
             }
+            const authorKey = answerLabel || '未知楼主';
+            const localStats = getLocalAuthorStats();
+            if (!localStats[authorKey]) localStats[authorKey] = { correct: 0, wrong: 0 };
+            if (correct) localStats[authorKey].correct += 1;
+            else localStats[authorKey].wrong += 1;
+            saveLocalAuthorStats(localStats);
             updateStats();
             updateScore();
             const baseText = correct ? "回答正确" : `回答错误 正确答案：${answerLabel}`;
@@ -637,6 +703,24 @@
 
         const LEADERBOARD_MY_ENTRIES_KEY = 'leaderboardMyEntries';
         const LEADERBOARD_LAST_NAME_KEY = 'leaderboardLastName';
+        const AUTHOR_STATS_KEY = 'authorStats';
+
+        function getLocalAuthorStats() {
+            try {
+                const raw = localStorage.getItem(AUTHOR_STATS_KEY);
+                return raw ? JSON.parse(raw) : {};
+            } catch (_) { return {}; }
+        }
+        function saveLocalAuthorStats(stats) {
+            try {
+                localStorage.setItem(AUTHOR_STATS_KEY, JSON.stringify(stats));
+            } catch (_) {}
+        }
+        function clearLocalAuthorStats() {
+            try {
+                localStorage.removeItem(AUTHOR_STATS_KEY);
+            } catch (_) {}
+        }
         function getLastLeaderboardName() {
             try {
                 return localStorage.getItem(LEADERBOARD_LAST_NAME_KEY) || '';
@@ -747,6 +831,89 @@
         }
         leaderboardSubmit.addEventListener('click', () => doSubmitScore(true));
         leaderboardSubmitCurrent.addEventListener('click', () => doSubmitScore(false));
+
+        async function refreshOverviewList() {
+            const api = window.firestoreApi;
+            if (!api || !api.getAuthorStats) {
+                overviewList.innerHTML = '<div class="opacity-60 text-center py-4">未配置 Firebase，请在 index.html 中填写 firebaseConfig。</div>';
+                return;
+            }
+            try {
+                let entries = await api.getAuthorStats();
+                if (!entries.length) {
+                    overviewList.innerHTML = '<div class="opacity-60 text-center py-4">暂无数据，答几道题后上传你的数据吧！</div>';
+                    return;
+                }
+                entries = entries.filter(e => (e.correctCount || 0) + (e.wrongCount || 0) >= 3);
+                if (!entries.length) {
+                    overviewList.innerHTML = '<div class="opacity-60 text-center py-4">暂无答题人数≥3的楼主，多答几道题或上传数据后再看吧。</div>';
+                    return;
+                }
+                const total = (c, w) => (c || 0) + (w || 0);
+                const rate = (c, w) => {
+                    const t = total(c, w);
+                    return t === 0 ? 0 : Math.round(((c || 0) / t) * 100);
+                };
+                entries.sort((a, b) => {
+                    const ra = rate(a.correctCount, a.wrongCount);
+                    const rb = rate(b.correctCount, b.wrongCount);
+                    if (ra !== rb) return rb - ra;
+                    return total(b.correctCount, b.wrongCount) - total(a.correctCount, a.wrongCount);
+                });
+                overviewList.innerHTML = '<table class="w-full text-left"><thead><tr class="border-b border-green-900"><th class="py-2 pr-4">楼主</th><th class="py-2 pr-4">答对</th><th class="py-2 pr-4">答错</th><th class="py-2">正确率</th></tr></thead><tbody>' +
+                    entries.map((e, i) => {
+                        const c = e.correctCount || 0;
+                        const w = e.wrongCount || 0;
+                        const r = rate(c, w);
+                        return `<tr class="border-b border-green-900/50"><td class="py-2 pr-4">${escapeHtml(e.author)}</td><td class="py-2 pr-4">${c}</td><td class="py-2 pr-4">${w}</td><td class="py-2">${r}%</td></tr>`;
+                    }).join('') + '</tbody></table>';
+            } catch (err) {
+                overviewList.innerHTML = '<div class="opacity-60 text-center py-4 text-red-400">加载失败：' + escapeHtml(String(err.message)) + '</div>';
+            }
+        }
+
+        overviewBtn.addEventListener('click', () => {
+            overviewModal.classList.remove('hidden');
+            refreshOverviewList();
+        });
+        overviewClose.addEventListener('click', () => overviewModal.classList.add('hidden'));
+        overviewModal.addEventListener('click', (e) => { if (e.target === overviewModal) overviewModal.classList.add('hidden'); });
+        overviewHelpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            overviewRulesTooltip.classList.toggle('hidden');
+        });
+        document.addEventListener('click', () => overviewRulesTooltip.classList.add('hidden'));
+        overviewRulesTooltip.addEventListener('click', (e) => e.stopPropagation());
+
+        overviewUploadBtn.addEventListener('click', async () => {
+            const localStats = getLocalAuthorStats();
+            const authors = Object.keys(localStats).filter(a => {
+                const s = localStats[a];
+                return (s.correct || 0) + (s.wrong || 0) > 0;
+            });
+            if (!authors.length) {
+                alert('暂无本地楼主统计数据，请先答几道题。');
+                return;
+            }
+            const api = window.firestoreApi;
+            if (!api || !api.submitAuthorStats) {
+                alert('未配置 Firebase，无法上传。');
+                return;
+            }
+            try {
+                overviewUploadBtn.disabled = true;
+                overviewUploadBtn.textContent = '上传中...';
+                await api.submitAuthorStats(localStats);
+                clearLocalAuthorStats();
+                await refreshOverviewList();
+                alert('上传成功，本地数据已清除。');
+            } catch (err) {
+                alert('上传失败：' + err.message);
+            } finally {
+                overviewUploadBtn.disabled = false;
+                overviewUploadBtn.textContent = '上传我的数据';
+            }
+        });
 
         startGameBtn.addEventListener('click', () => {
             startGameBtn.classList.add('hidden');

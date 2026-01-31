@@ -1,6 +1,6 @@
-# Firebase Firestore 排行榜配置说明
+# Firebase Firestore 配置说明
 
-本项目的排行榜使用 **Firebase Firestore** 存储分数。按以下步骤配置后，玩家即可上传自己的最高分并查看排行榜。
+本项目使用 **Firebase Firestore** 存储排行榜分数和楼主统计。按以下步骤配置后，玩家即可上传最高分、查看排行榜、以及使用楼主统计总览功能。
 
 ---
 
@@ -41,6 +41,12 @@ service cloud.firestore {
       allow create: if true;
       allow update: if false;
       allow delete: if true;
+    }
+    match /author_stats/{entry} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if false;
     }
   }
 }
@@ -85,8 +91,10 @@ service cloud.firestore {
 ## 6. 验证
 
 1. 用本地服务器打开页面（如 `python -m http.server 8080` 后访问）
-2. 点击右上角 **「排行榜」**，应能打开弹窗（若未配置会显示「未配置 Firebase」）
+2. 点击 **「排行榜」**，应能打开弹窗（若未配置会显示「未配置 Firebase」）
 3. 玩一局后点击 **「上传我的最高分」**，输入昵称，若配置正确会提示上传成功，排行榜列表会刷新
+4. 点击 **「总览」**，打开楼主统计总览；标题旁的问号可查看展示规则
+5. 答几道题后，在总览中点击 **「上传我的数据」**，本地统计会累加到云端并清除本地
 
 ---
 
@@ -105,13 +113,31 @@ service cloud.firestore {
 
 ---
 
+## 楼主统计总览 (author_stats)
+
+- **集合名**：`author_stats`
+- **用途**：记录每位楼主被答对/答错的汇总数据，由玩家上传的本地统计累计而成。
+- **每条记录字段**：
+  - `author`（string）：楼主名
+  - `correctCount`（number）：该楼主被答对的次数
+  - `wrongCount`（number）：该楼主被答错的次数
+- **文档 ID**：楼主名经 sanitize 后（如 `/` 替换为 `_`）作为 doc ID。
+- **展示规则**（总览标题旁问号可查看）：只显示答对 + 答错 ≥ 3 的楼主；按正确率排序，正确率相同则答得多的优先。
+- **上传**：用户点击「上传我的数据」后，其本地按楼主统计的答对/答错会累加到云端（使用 `FieldValue.increment`），本地数据随即清除。
+- **规则说明**：`author_stats` 需要 `allow update: if true`，因为上传时使用增量更新。
+
+---
+
 ## 常见问题
 
 - **打开排行榜显示「未配置 Firebase」**  
   检查 `index.html` 里的 `firebaseConfig` 是否已替换为真实配置，且 `projectId` 不是 `YOUR_PROJECT_ID`。
 
 - **上传失败 / 控制台报权限错误**  
-  确认 Firestore 规则已按第 3 步发布，且规则里包含 `leaderboard_teaparty` 的 `create: if true`。
+  确认 Firestore 规则已按第 3 步发布，且规则里包含 `leaderboard_teaparty` 的 `create: if true`、`author_stats` 的 `create` 与 `update: if true`。
 
 - **想限制谁可以上传**  
   可后续改为使用 Firebase Auth 登录，在规则里写 `allow create: if request.auth != null` 等条件。
+
+- **总览显示「暂无答题人数≥3的楼主」**  
+  只展示答对+答错≥3的楼主；多答几道题或上传数据后再试。
