@@ -22,7 +22,7 @@
 
 ## 数据来源与爬虫
 
-题目数据来自 `posts.json`，可由本仓库自带的 Bangumi 小组爬虫生成。
+题目数据来自 `hot_posts.json`，可由本仓库自带的 Bangumi 小组爬虫生成。
 
 ### Bangumi 小组爬虫
 
