@@ -116,7 +116,7 @@
             <div class="flex items-start gap-3">
                 <div class="flex flex-col gap-2">
                     <div class="flex gap-2">
-                        <button id="pause-btn" class="cyber-btn px-3 py-1 text-base md:text-lg rounded" title="暂停">⏸</button>
+                        <button id="pause-btn" class="cyber-btn px-3 py-1 text-base md:text-lg rounded opacity-40 cursor-not-allowed" title="暂停" disabled>⏸</button>
                         <button id="restart-btn" class="cyber-btn px-3 py-1 text-base md:text-lg rounded" title="重开">⟲</button>
                     </div>
                     <div class="text-xs md:text-sm opacity-60">
@@ -754,6 +754,8 @@
             choiceNanoi.classList.remove('hidden');
             restartBtn.disabled = false;
             restartBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            pauseBtn.disabled = false;
+            pauseBtn.classList.remove('opacity-40', 'cursor-not-allowed');
             startRound();
         });
 
@@ -767,6 +769,8 @@
             setChoicesEnabled(false);
             restartBtn.disabled = true;
             restartBtn.classList.add('opacity-40', 'cursor-not-allowed');
+            pauseBtn.disabled = true;
+            pauseBtn.classList.add('opacity-40', 'cursor-not-allowed');
         }
 
         // 初始化
