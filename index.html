@@ -174,11 +174,13 @@
                 <button id="start-game-btn" class="cyber-btn px-12 py-4 text-xl md:text-2xl rounded w-full md:w-auto">
                     开始游戏
                 </button>
-                <button id="choice-linbai" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
-                    选项A
+                <button id="choice-linbai" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden flex items-center justify-center gap-3">
+                    <img id="choice-linbai-avatar" src="" alt="" class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-green-900 object-cover hidden" />
+                    <span id="choice-linbai-text">选项A</span>
                 </button>
-                <button id="choice-nanoi" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
-                    选项B
+                <button id="choice-nanoi" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden flex items-center justify-center gap-3">
+                    <img id="choice-nanoi-avatar" src="" alt="" class="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-green-900 object-cover hidden" />
+                    <span id="choice-nanoi-text">选项B</span>
                 </button>
                 <button id="next-question" class="cyber-btn px-8 py-3 text-lg md:text-xl rounded w-full md:w-auto hidden">
                     重新出题
@@ -346,6 +348,10 @@
         const bgNoise = document.getElementById('bg-noise');
         const choiceLinbai = document.getElementById('choice-linbai');
         const choiceNanoi = document.getElementById('choice-nanoi');
+        const choiceLinbaiAvatar = document.getElementById('choice-linbai-avatar');
+        const choiceNanoiAvatar = document.getElementById('choice-nanoi-avatar');
+        const choiceLinbaiText = document.getElementById('choice-linbai-text');
+        const choiceNanoiText = document.getElementById('choice-nanoi-text');
         const nextQuestion = document.getElementById('next-question');
         const pauseBtn = document.getElementById('pause-btn');
         const restartBtn = document.getElementById('restart-btn');
@@ -469,25 +475,52 @@
             const title = (post.title || "").trim();
             const body = (post.body || "").trim();
             const text = body ? `标题：${title}\n\n正文：${body}` : `标题：${title}`;
-            return { author: (post.author || "").trim(), text, url: (post.url || "").trim() };
+            return {
+                author: (post.author || "").trim(),
+                username: (post.username || "").trim(),
+                text,
+                url: (post.url || "").trim()
+            };
         }
 
         function pickDistractor(correctAuthor) {
             const sampleSize = Math.min(20, posts.length);
             const shuffled = [...posts].sort(() => Math.random() - 0.5);
             const sampled = shuffled.slice(0, sampleSize);
-            const pool = [...new Set(
-                sampled
-                    .map((item) => (item.author || "").trim())
-                    .filter((name) => name && name !== correctAuthor)
-            )];
+            const pool = sampled.filter(
+                (item) => (item.author || "").trim() && (item.author || "").trim() !== correctAuthor
+            );
             if (pool.length > 0) {
-                return getRandomItem(pool);
+                const p = getRandomItem(pool);
+                return { author: (p.author || "").trim(), username: (p.username || "").trim() };
             }
-            const fallback = posts
-                .map((item) => (item.author || "").trim())
-                .filter((name) => name && name !== correctAuthor);
-            return fallback.length > 0 ? getRandomItem(fallback) : "未知楼主";
+            const fallback = posts.filter(
+                (item) => (item.author || "").trim() && (item.author || "").trim() !== correctAuthor
+            );
+            if (fallback.length > 0) {
+                const p = getRandomItem(fallback);
+                return { author: (p.author || "").trim(), username: (p.username || "").trim() };
+            }
+            return { author: "未知楼主", username: "" };
+        }
+
+        const BGM_API = "https://api.bgm.tv/v0/users";
+        const avatarCache = {};
+        async function fetchBgmAvatar(username) {
+            if (!username) return null;
+            if (avatarCache[username]) return avatarCache[username];
+            try {
+                const res = await fetch(`${BGM_API}/${encodeURIComponent(username)}`, {
+                    headers: { "User-Agent": "TeaPartyRandom/1.0 (https://github.com/)" }
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                const url = data?.avatar?.medium || data?.avatar?.small || data?.avatar?.large;
+                if (url) avatarCache[username] = url;
+                return url || null;
+            } catch (e) {
+                return null;
+            }
         }
 
         function applyTextStyle(text) {
@@ -553,7 +586,7 @@
             displayContainer.classList.add('glitch-active');
             setTimeout(() => displayContainer.classList.remove('glitch-active'), 200);
 
-            const { author, text, url } = pickQuestion();
+            const { author, username, text, url } = pickQuestion();
             currentSource = author;
             mainText.dataset.currentUrl = url || "";
             mainText.dataset.fullText = text;
@@ -561,9 +594,36 @@
             startTyping(text);
 
             const distractor = pickDistractor(author);
-            const options = Math.random() < 0.5 ? [author, distractor] : [distractor, author];
-            choiceLinbai.textContent = options[0];
-            choiceNanoi.textContent = options[1];
+            const options = Math.random() < 0.5
+                ? [{ author, username }, distractor]
+                : [distractor, { author, username }];
+            const [optA, optB] = options;
+            choiceLinbaiText.textContent = optA.author;
+            choiceNanoiText.textContent = optB.author;
+            choiceLinbai.dataset.author = optA.author;
+            choiceNanoi.dataset.author = optB.author;
+            choiceLinbaiAvatar.classList.add('hidden');
+            choiceLinbaiAvatar.removeAttribute('src');
+            choiceNanoiAvatar.classList.add('hidden');
+            choiceNanoiAvatar.removeAttribute('src');
+            (async () => {
+                const [urlA, urlB] = await Promise.all([
+                    fetchBgmAvatar(optA.username),
+                    fetchBgmAvatar(optB.username)
+                ]);
+                if (urlA && choiceLinbai.dataset.author === optA.author) {
+                    choiceLinbaiAvatar.onerror = () => choiceLinbaiAvatar.classList.add('hidden');
+                    choiceLinbaiAvatar.src = urlA;
+                    choiceLinbaiAvatar.alt = optA.author;
+                    choiceLinbaiAvatar.classList.remove('hidden');
+                }
+                if (urlB && choiceNanoi.dataset.author === optB.author) {
+                    choiceNanoiAvatar.onerror = () => choiceNanoiAvatar.classList.add('hidden');
+                    choiceNanoiAvatar.src = urlB;
+                    choiceNanoiAvatar.alt = optB.author;
+                    choiceNanoiAvatar.classList.remove('hidden');
+                }
+            })();
             startScoreTimer();
         }
 
@@ -599,8 +659,8 @@
             stopScoreTimer();
         }
 
-        choiceLinbai.addEventListener('click', () => handleAnswer(choiceLinbai.textContent));
-        choiceNanoi.addEventListener('click', () => handleAnswer(choiceNanoi.textContent));
+        choiceLinbai.addEventListener('click', () => handleAnswer(choiceLinbai.dataset.author || choiceLinbaiText.textContent));
+        choiceNanoi.addEventListener('click', () => handleAnswer(choiceNanoi.dataset.author || choiceNanoiText.textContent));
         nextQuestion.addEventListener('click', () => {
             if (isPaused) return;
             startRound();

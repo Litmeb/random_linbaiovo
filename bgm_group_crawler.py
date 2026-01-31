@@ -133,6 +133,7 @@ class BodyExtractor(HTMLParser):
 class TopicItem:
     title: str
     author: str
+    username: str
     url: str
     body: str = ""
     reply_count: int = 0
@@ -152,16 +153,20 @@ def parse_topic_list(html: str, base_url: str) -> list[TopicItem]:
         seen.add(url)
         title = strip_tags(title_html)
         author = ""
+        username = ""
         user_links = [m for m in USER_LINK_RE.finditer(row) if m.group(1).startswith("/user/")]
         if user_links:
             author = strip_tags(user_links[0].group(2))
+            # href 形如 /user/username，取第二段为 username
+            href = user_links[0].group(1).rstrip("/")
+            username = href.removeprefix("/user/").split("/")[0] or ""
         reply_count = 0
         td_contents = re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
         if len(td_contents) >= 3:
             reply_str = strip_tags(td_contents[2]).strip()
             if reply_str.isdigit():
                 reply_count = int(reply_str)
-        items.append(TopicItem(title=title, author=author, url=url, reply_count=reply_count))
+        items.append(TopicItem(title=title, author=author, username=username, url=url, reply_count=reply_count))
     return items
 
 
@@ -239,7 +244,7 @@ def main() -> int:
         args.group_url, args.pages, args.limit, args.sleep, args.min_replies
     )
     payload = [
-        {"author": t.author, "title": t.title, "url": t.url, "body": t.body}
+        {"author": t.author, "username": t.username, "title": t.title, "url": t.url, "body": t.body}
         for t in topics
         if EXCLUDE_PHRASE not in t.body and EXCLUDE_PHRASE not in t.title
     ]
