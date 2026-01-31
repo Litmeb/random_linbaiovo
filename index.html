@@ -198,7 +198,10 @@
                 <div class="p-4 border-t border-green-900 space-y-3">
                     <label class="block text-sm opacity-80">你的名字（将显示在排行榜上）</label>
                     <input type="text" id="leaderboard-name-input" maxlength="20" placeholder="输入名字" class="w-full bg-black border-2 border-green-900 rounded px-3 py-2 text-green-500 placeholder-green-900 focus:outline-none focus:border-green-500" />
-                    <button type="button" id="leaderboard-submit" class="cyber-btn w-full py-2 rounded">上传我的最高分</button>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button type="button" id="leaderboard-submit" class="cyber-btn w-full py-2 rounded">上传历史最高分</button>
+                        <button type="button" id="leaderboard-submit-current" class="cyber-btn w-full py-2 rounded opacity-90">上传当前最高分</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -227,7 +230,7 @@
                 firebase.initializeApp(firebaseConfig);
                 db = firebase.firestore();
                 window.firestoreApi.getLeaderboard = async function() {
-                    const snap = await db.collection('leaderboard')
+                    const snap = await db.collection('leaderboard_teaparty')
                         .orderBy('score', 'desc')
                         .limit(200)
                         .get();
@@ -249,7 +252,7 @@
                     const sc = Number(score);
                     const cr = Number(correctRate);
                     const cc = Number(correctCount);
-                    const dup = await db.collection('leaderboard')
+                    const dup = await db.collection('leaderboard_teaparty')
                         .where('score', '==', sc)
                         .where('correctRate', '==', cr)
                         .where('correctCount', '==', cc)
@@ -257,7 +260,7 @@
                         .get();
                     if (!dup.empty) return { alreadyStored: true };
                     const deleteToken = Array.from({ length: 32 }, () => Math.random().toString(36)[2]).join('');
-                    const ref = await db.collection('leaderboard').add({
+                    const ref = await db.collection('leaderboard_teaparty').add({
                         nickname: sn,
                         score: sc,
                         correctRate: cr,
@@ -268,7 +271,7 @@
                     return { alreadyStored: false, docId: ref.id, deleteToken: deleteToken };
                 };
                 window.firestoreApi.deleteEntry = async function(docId, deleteToken) {
-                    const ref = db.collection('leaderboard').doc(docId);
+                    const ref = db.collection('leaderboard_teaparty').doc(docId);
                     const snap = await ref.get();
                     if (!snap.exists) throw new Error('记录不存在');
                     if (snap.data().deleteToken !== deleteToken) throw new Error('无权删除该记录');
@@ -280,19 +283,6 @@
         }
     </script>
     <script>
-        const frequentAuthors = [
-            "To 亲爱的NanoiUwU:",
-            "ScalLiontimbe",
-            "jibo babybaka",
-            "针阔叶林☆",
-            "我错了",
-            "林白_OvO",
-            "McGanter",
-            "Akanyase",
-            "白葱"
-        ];
-
-
         const mainText = document.getElementById('main-text');
         const resultText = document.getElementById('result-text');
         const textWrapper = document.getElementById('text-wrapper');
@@ -318,6 +308,7 @@
         const leaderboardList = document.getElementById('leaderboard-list');
         const leaderboardClose = document.getElementById('leaderboard-close');
         const leaderboardSubmit = document.getElementById('leaderboard-submit');
+        const leaderboardSubmitCurrent = document.getElementById('leaderboard-submit-current');
         const leaderboardNameInput = document.getElementById('leaderboard-name-input');
         const userNameDisplay = document.getElementById('user-name-display');
 
@@ -422,7 +413,14 @@
         }
 
         function pickDistractor(correctAuthor) {
-            const pool = frequentAuthors.filter((name) => name && name !== correctAuthor);
+            const sampleSize = Math.min(20, posts.length);
+            const shuffled = [...posts].sort(() => Math.random() - 0.5);
+            const sampled = shuffled.slice(0, sampleSize);
+            const pool = [...new Set(
+                sampled
+                    .map((item) => (item.author || "").trim())
+                    .filter((name) => name && name !== correctAuthor)
+            )];
             if (pool.length > 0) {
                 return getRandomItem(pool);
             }
@@ -537,7 +535,10 @@
 
         choiceLinbai.addEventListener('click', () => handleAnswer(choiceLinbai.textContent));
         choiceNanoi.addEventListener('click', () => handleAnswer(choiceNanoi.textContent));
-        nextQuestion.addEventListener('click', startRound);
+        nextQuestion.addEventListener('click', () => {
+            if (isPaused) return;
+            startRound();
+        });
         pauseBtn.addEventListener('click', () => {
             isPaused = !isPaused;
             pauseBtn.textContent = isPaused ? "▶" : "⏸";
@@ -546,12 +547,16 @@
                 resultText.textContent = "暂停";
                 setChoicesEnabled(false);
                 stopScoreTimer();
+                nextQuestion.disabled = true;
+                nextQuestion.classList.add('opacity-40', 'cursor-not-allowed');
             } else {
                 resultText.innerHTML = pausedResultHtml || "";
                 if (!isAnswered && postsReady) {
                     setChoicesEnabled(true);
                     startScoreTimer();
                 }
+                nextQuestion.disabled = false;
+                nextQuestion.classList.remove('opacity-40', 'cursor-not-allowed');
             }
         });
         restartBtn.addEventListener('click', () => {
@@ -568,7 +573,7 @@
 
         async function loadPosts() {
             try {
-                const res = await fetch('posts.json', { cache: 'no-store' });
+                const res = await fetch('hot_posts.json', { cache: 'no-store' });
                 if (!res.ok) throw new Error('load failed');
                 posts = await res.json();
                 posts = posts.filter((item) => item && (item.title || item.body) && item.author);
@@ -699,17 +704,31 @@
         leaderboardClose.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
         leaderboardModal.addEventListener('click', (e) => { if (e.target === leaderboardModal) leaderboardModal.classList.add('hidden'); });
 
-        leaderboardSubmit.addEventListener('click', async () => {
+        async function doSubmitScore(useHistory) {
             const api = window.firestoreApi;
             if (!api || !api.submitScore) {
                 alert('未配置 Firebase，无法上传分数。');
                 return;
             }
             const nickname = (leaderboardNameInput && leaderboardNameInput.value.trim()) ? leaderboardNameInput.value.trim().slice(0, 20) : '匿名';
-            const total = historyMaxCorrectCount + historyMaxWrongCount;
-            const correctRate = total > 0 ? Math.round((historyMaxCorrectCount / total) * 100) : 0;
+            let sc, correctRate, correctCountVal;
+            if (useHistory) {
+                const total = historyMaxCorrectCount + historyMaxWrongCount;
+                correctRate = total > 0 ? Math.round((historyMaxCorrectCount / total) * 100) : 0;
+                sc = historyMaxScore;
+                correctCountVal = historyMaxCorrectCount;
+            } else {
+                const total = correctCount + wrongCount;
+                correctRate = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+                sc = maxScore;
+                correctCountVal = correctCount;
+            }
+            if (sc <= 0) {
+                alert(useHistory ? '历史最高分为 0，无法上传。' : '当前回合暂无分数，请先玩一局。');
+                return;
+            }
             try {
-                const result = await api.submitScore(nickname, historyMaxScore, correctRate, historyMaxCorrectCount);
+                const result = await api.submitScore(nickname, sc, correctRate, correctCountVal);
                 if (result && result.alreadyStored) {
                     alert('上传被阻止：已存在完全相同的记录（总分、正确率、正答数均一致），请勿重复上传。');
                     return;
@@ -725,7 +744,9 @@
             } catch (err) {
                 alert('上传失败：' + err.message);
             }
-        });
+        }
+        leaderboardSubmit.addEventListener('click', () => doSubmitScore(true));
+        leaderboardSubmitCurrent.addEventListener('click', () => doSubmitScore(false));
 
         startGameBtn.addEventListener('click', () => {
             startGameBtn.classList.add('hidden');

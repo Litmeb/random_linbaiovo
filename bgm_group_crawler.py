@@ -135,6 +135,7 @@ class TopicItem:
     author: str
     url: str
     body: str = ""
+    reply_count: int = 0
 
 
 def parse_topic_list(html: str, base_url: str) -> list[TopicItem]:
@@ -154,7 +155,13 @@ def parse_topic_list(html: str, base_url: str) -> list[TopicItem]:
         user_links = [m for m in USER_LINK_RE.finditer(row) if m.group(1).startswith("/user/")]
         if user_links:
             author = strip_tags(user_links[0].group(2))
-        items.append(TopicItem(title=title, author=author, url=url))
+        reply_count = 0
+        td_contents = re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
+        if len(td_contents) >= 3:
+            reply_str = strip_tags(td_contents[2]).strip()
+            if reply_str.isdigit():
+                reply_count = int(reply_str)
+        items.append(TopicItem(title=title, author=author, url=url, reply_count=reply_count))
     return items
 
 
@@ -176,7 +183,13 @@ def extract_body(html: str) -> str:
     return ""
 
 
-def crawl_group(group_url: str, pages: int, limit: int | None, sleep_sec: float) -> list[TopicItem]:
+def crawl_group(
+    group_url: str,
+    pages: int,
+    limit: int | None,
+    sleep_sec: float,
+    min_replies: int | None = None,
+) -> list[TopicItem]:
     topics: list[TopicItem] = []
     for page in range(1, pages + 1):
         page_url = f"{group_url.rstrip('/')}/forum?page={page}"
@@ -184,6 +197,10 @@ def crawl_group(group_url: str, pages: int, limit: int | None, sleep_sec: float)
         page_html = fetch_html(page_url)
         topics.extend(parse_topic_list(page_html, group_url))
         time.sleep(sleep_sec)
+
+    if min_replies is not None:
+        topics = [t for t in topics if t.reply_count >= min_replies]
+        print(f"[filter] min_replies>={min_replies}: {len(topics)} topics remain", flush=True)
 
     if limit is not None:
         topics = topics[:limit]
@@ -205,14 +222,26 @@ def main() -> int:
     )
     parser.add_argument("--pages", type=int, default=1, help="Number of list pages to crawl.")
     parser.add_argument("--limit", type=int, default=None, help="Max number of topics.")
+    parser.add_argument(
+        "--min-replies",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Filter out topics with fewer than N replies.",
+    )
     parser.add_argument("--sleep", type=float, default=1.0, help="Sleep seconds between requests.")
     parser.add_argument("--output", default="posts.json", help="Output JSON file path.")
     args = parser.parse_args()
 
-    topics = crawl_group(args.group_url, args.pages, args.limit, args.sleep)
+    EXCLUDE_PHRASE = "数据库中没有查询到指定话题"
+
+    topics = crawl_group(
+        args.group_url, args.pages, args.limit, args.sleep, args.min_replies
+    )
     payload = [
         {"author": t.author, "title": t.title, "url": t.url, "body": t.body}
         for t in topics
+        if EXCLUDE_PHRASE not in t.body and EXCLUDE_PHRASE not in t.title
     ]
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)

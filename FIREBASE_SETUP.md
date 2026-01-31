@@ -24,13 +24,19 @@
 ## 3. 设置 Firestore 安全规则
 
 1. 在 Firestore 页面打开 **「规则」** 标签
-2. 将规则替换为下面内容（允许所有人读排行榜，所有人可新增一条记录，不允许修改/删除已有记录）：
+2. 将规则替换为下面内容（允许所有人读/新增，不允许修改，允许凭 deleteToken 删除）：
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /leaderboard/{entry} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if true;
+    }
+    match /leaderboard_teaparty/{entry} {
       allow read: if true;
       allow create: if true;
       allow update: if false;
@@ -86,7 +92,7 @@ service cloud.firestore {
 
 ## 数据结构说明
 
-- **集合名**：`leaderboard`
+- **集合名**：`leaderboard_teaparty`
 - **每条记录字段**：
   - `nickname`（string）：玩家昵称，最多 20 字
   - `score`（number）：历史最高分
@@ -105,7 +111,7 @@ service cloud.firestore {
   检查 `index.html` 里的 `firebaseConfig` 是否已替换为真实配置，且 `projectId` 不是 `YOUR_PROJECT_ID`。
 
 - **上传失败 / 控制台报权限错误**  
-  确认 Firestore 规则已按第 3 步发布，且规则里包含 `leaderboard` 的 `create: if true`。
+  确认 Firestore 规则已按第 3 步发布，且规则里包含 `leaderboard_teaparty` 的 `create: if true`。
 
 - **想限制谁可以上传**  
   可后续改为使用 Firebase Auth 登录，在规则里写 `allow create: if request.auth != null` 等条件。
